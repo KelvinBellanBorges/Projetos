@@ -1,0 +1,67 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- master
+
+pool:
+  vmImage: windows-2019
+
+steps:
+
+- task: PowerShell@2
+  inputs:
+    targetType: 'inline'
+    script: |
+      # Install Chrome
+      Write-Host "Chrome Install Init"
+      Write-Host "Variables"
+      $Path = $env:TEMP; 
+      $Installer = “chrome_installer.exe”; 
+      Write-Host "Download Chrome Latest Version"
+      Invoke-WebRequest “http://dl.google.com/chrome/chrome_installer.exe" -OutFile $Path\$Installer; 
+      Write-Host "Install Chrome"
+      Start-Process -FilePath $Path\$Installer -Args “/silent /install” -Verb RunAs -Wait; 
+      Remove-Item $Path\$Installer 
+      #Version verify.
+      Write-Host "Version verify."
+      (Get-Item (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe').'(Default)').VersionInfo
+      # Install  ChromeDriver
+      Write-Host "Instal ChromeDriver"
+      $ChromeVersion = (Get-Item (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe').'(Default)').VersionInfo.FileVersion;
+      Write-Output "Google Chrome version $ChromeVersion found on machine";
+      $ChromeVersion = $ChromeVersion.Substring(0, $ChromeVersion.LastIndexOf("."));
+      $ChromeDriverVersion = (Invoke-WebRequest "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$ChromeVersion").Content;
+      Write-Output "Latest matching version of Chrome Driver is $ChromeDriverVersion";
+      $TempFilePath = [System.IO.Path]::GetTempFileName();
+      $TempZipFilePath = $TempFilePath.Replace(".tmp", ".zip");
+      Rename-Item -Path $TempFilePath -NewName $TempZipFilePath;
+      $TempFileUnzipPath = $TempFilePath.Replace(".tmp", "");
+      Invoke-WebRequest "https://chromedriver.storage.googleapis.com/$ChromeDriverVersion/chromedriver_win32.zip" -OutFile $TempZipFilePath;
+      Expand-Archive $TempZipFilePath -DestinationPath $TempFileUnzipPath;
+      cd c:\;
+      mkdir drives;
+      cd drives;
+      Move-Item "$TempFileUnzipPath/chromedriver.exe" -Destination "C:\drives\chromedriver.exe" -Force;
+  displayName: 'Browser Install & Config'
+
+- script: pip install -r requirements.txt
+  displayName: 'Install Requirements'
+
+- task: PowerShell@2
+  inputs:
+    targetType: 'inline'
+    script: 'robot -d ./results TestSuite'
+    errorActionPreference: 'continue'
+  displayName: 'Execute Cases'
+  continueOnError: true
+
+- task: PublishBuildArtifacts@1
+  inputs:
+    PathtoPublish: 'D:\a\1\s\results'
+    ArtifactName: 'Results'
+    publishLocation: 'Container'
+  continueOnError: true
+  displayName: 'Publicando Results'
