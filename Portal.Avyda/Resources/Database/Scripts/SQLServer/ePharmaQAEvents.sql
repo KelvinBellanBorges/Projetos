@@ -1,0 +1,10 @@
+SELECT [Id]
+      ,[Name]
+      ,[Code]
+      ,[StatusId]
+      ,[Deleted]
+      ,[DeletedAt]
+      ,[CreatedAt]
+      ,[NotificationTypeId]
+  FROM [dbo].[Events]
+  where [Id] = 1
